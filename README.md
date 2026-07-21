@@ -1,5 +1,5 @@
 PT
-# Pokemon-Web-Idle
+# Pokemon Web Idle
 Pokémon Web Idle é um jogo do gênero "Idle Battle RPG" projetado para rodar de forma prática e contínua diretamente no seu navegador web (baseado em Chromium).
 
 📖 Sobre o Jogo
@@ -10,7 +10,7 @@ Este aplicativo é um projeto independente feito por fãs e não é afiliado, en
 Imagens, nomes de personagens, sons e marcas registradas de Pokémon são propriedade de seus respectivos donos. Nenhuma violação de direitos autorais é intencional. Todo o conteúdo é utilizado exclusivamente para fins informativos e de entretenimento.
 
 EN
-# Pokemon-Web-Idle
+# Pokemon Web Idle
 Pokémon Web Idle is a "Idle Battle RPG" game designed to run practically and continuously directly in your web browser (based on Chromium).
 
 📖 About the Game

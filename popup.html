@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+  <div id="app-wrapper">
+    <div class="header">
+      <h2 id="page-title" data-i18n="pokedex">Pokédex</h2>
+      <div class="header-icons">
+        <div class="theme-toggle" id="dark-mode-btn" title="Alternar Tema">
+          <div class="toggle-circle" id="toggle-icon">🌙</div>
+        </div>
+        <button id="settings-btn" title="Configurações">⚙️</button>
+      </div>
+    </div>
+    
+    <div id="pokedex-view">
+      <button id="reset-btn"></button>
+      
+      <div class="search-container">
+        <img class="search-icon" src="assets/Icons/Search_Icon_Rotom.png" alt="Search">
+        <input type="text" id="search-input" data-i18n-placeholder="search">
+      </div>
+
+      <div class="tabs-container" id="tabs">
+        <button class="tab-btn" data-gen="favorites" title="Favoritos">★</button>
+        <button class="tab-btn" data-gen="all">All</button>
+        <button class="tab-btn" data-gen="catched" data-i18n="catched">Catched</button>
+        <button class="tab-btn active" data-gen="1">Gen 1</button>
+        <button class="tab-btn" data-gen="2">Gen 2</button>
+        <button class="tab-btn" data-gen="3">Gen 3</button>
+        <button class="tab-btn" data-gen="4">Gen 4</button>
+        <button class="tab-btn" data-gen="5">Gen 5</button>
+        <button class="tab-btn" data-gen="6">Gen 6</button>
+        <button class="tab-btn" data-gen="7">Gen 7</button>
+        <button class="tab-btn" data-gen="8">Gen 8</button>
+        <button class="tab-btn" data-gen="9">Gen 9</button>
+      </div>
+
+      <div id="grid"></div>
+    </div>
+
+    <!-- TELA DE DETALHES DO POKÉMON -->
+    <div id="pokemon-detail-view">
+      <button id="btn-back-pokedex" class="wbm-back-btn" data-i18n="back">← Voltar</button>
+      
+      <div class="det-top-section">
+        <div class="det-card">
+          <div class="det-card-header">
+            <span id="det-id" class="id-label">#000</span>
+            <img src="assets/Icons/Pokeball.png" alt="Pokeball" class="det-pokeball" id="det-equip-btn" title="Equipar Pokémon">
+          </div>
+          <img id="det-img" src="" alt="Pokemon">
+          <div id="det-name" class="det-name">Nome</div>
+          <div id="det-level" class="det-level">Lv. 1</div>
+          <div id="det-types" class="det-types"></div>
+        </div>
+
+        <div class="det-moves-build">
+          <div class="moves-title">Moves Build</div>
+          <div id="det-moves-list"></div>
+        </div>
+      </div>
+
+      <div class="det-bottom-section">
+        <div class="det-tabs">
+          <div class="det-tab active" data-target="tab-stats">Stats</div>
+          <div class="det-tab" data-target="tab-moves">Moves</div>
+          <div class="det-tab" data-target="tab-evo">Evo Line</div>
+        </div>
+
+        <!-- ABA: STATS -->
+        <div id="tab-stats" class="det-tab-content active">
+          <!-- NOVO: BLOCCO DE NATUREZAS -->
+          <div class="nature-row">
+            <label for="det-nature-select" data-i18n="nature" class="nature-label">Natureza:</label>
+            <select id="det-nature-select" class="wbm-select"></select>
+          </div>
+
+          <div id="det-stats-list" class="stats-list"></div>
+          <div id="det-total-evs" class="stats-ev-total">0/510 EVs</div>
+          
+          <div class="type-defenses-title">Type Defenses</div>
+          <div class="type-def-grid" id="type-def-grid-1"></div>
+          <div class="type-def-grid" id="type-def-grid-2"></div>
+        </div>
+
+        <!-- ABA: MOVES COM SUB-ABAS -->
+        <div id="tab-moves" class="det-tab-content">
+          <div class="sub-tabs">
+            <div class="sub-tab active" data-target="sub-tab-level">Level</div>
+            <div class="sub-tab" data-target="sub-tab-egg">Egg</div>
+            <div class="sub-tab" data-target="sub-tab-tmhm">TMs & HMs</div>
+          </div>
+          
+          <div id="sub-tab-level" class="sub-tab-content active">
+            <div id="det-level-moves-list" class="level-moves-container"></div>
+          </div>
+
+          <div id="sub-tab-egg" class="sub-tab-content">
+            <div id="det-egg-moves-list" class="level-moves-container"></div>
+          </div>
+
+          <div id="sub-tab-tmhm" class="sub-tab-content">
+            <div id="det-tmhm-moves-list" class="level-moves-container"></div>
+          </div>
+        </div>
+        
+        <!-- ABA: EVO LINE -->
+        <div id="tab-evo" class="det-tab-content">
+          <div id="det-evo-list" class="evo-list-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TELA DE CONFIGURAÇÕES -->
+    <div id="settings-view" style="display: none;">
+      <div class="accordion">
+        <button class="accordion-header"><span data-i18n="a11y">Acessibilidade</span> <span class="accordion-arrow">▼</span></button>
+        <div class="accordion-content" id="accordion-content-a11y">
+          <!-- Modificado para conter Tooltips de Ajuda (?) -->
+          <div class="setting-row">
+            <span style="display: flex; align-items: center; gap: 6px;">
+              <span data-i18n="glass">Aparência de vidro</span>
+              <span class="wbm-tooltip-icon" data-i18n-tooltip="glass_tooltip">?</span>
+            </span>
+            <input type="range" id="glass-slider" min="0" max="100" value="0">
+          </div>
+          <div class="setting-row">
+            <span style="display: flex; align-items: center; gap: 6px;">
+              <span data-i18n="dopamine">Modo Dopamina</span>
+              <span class="wbm-tooltip-icon" data-i18n-tooltip="dopamine_tooltip">?</span>
+            </span>
+            <label class="switch">
+              <input type="checkbox" id="dopamine-toggle" checked>
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+          
+          <div class="setting-row">
+            <span style="display: flex; align-items: center; gap: 6px;">
+              <span data-i18n="active_mode">Modo Ativo</span>
+              <span class="wbm-tooltip-icon" data-i18n-tooltip="active_mode_tooltip">?</span>
+            </span>
+            <label class="switch">
+              <input type="checkbox" id="active-mode-toggle">
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+          
+          <div class="setting-row">
+            <span data-i18n="handedness">Lateralidade</span>
+            <div class="lat-selector">
+              <button id="lat-left-btn" class="lat-btn">◀</button>
+              <span id="lat-text" style="flex:1; text-align: center;">Destro</span>
+              <button id="lat-right-btn" class="lat-btn">▶</button>
+            </div>
+          </div>
+          
+          <div class="setting-row">
+            <span data-i18n="language">Idioma</span>
+            <div class="lat-selector">
+              <button id="lang-left-btn" class="lat-btn">◀</button>
+              <span id="lang-text" style="flex:1; text-align: center;">Português</span>
+              <button id="lang-right-btn" class="lat-btn">▶</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="accordion">
+        <button class="accordion-header"><span data-i18n="disclaimer_title">Disclaimer</span> <span class="accordion-arrow">▼</span></button>
+        <div class="accordion-content" id="accordion-content-disclaimer">
+          <span data-i18n="disclaimer_text">Este aplicativo é um projeto independente feito por fãs...</span>
+        </div>
+      </div>
+
+      <div class="accordion">
+        <button class="accordion-header"><span data-i18n="stats">Estatísticas</span> <span class="accordion-arrow">▼</span></button>
+        <div class="accordion-content" id="accordion-content-stats">
+          <div class="stats-row">
+            <span data-i18n="ram">Uso de memória ram</span>
+            <span class="stats-val" id="ram-usage" data-i18n="calc">Calculando...</span>
+          </div>
+          <div class="stats-row">
+            <span data-i18n="cache">Uso de memória em cache</span>
+            <span class="stats-val" id="cache-usage" data-i18n="calc">Calculando...</span>
+          </div>
+          
+          <div class="stats-row">
+            <span data-i18n="fps">Taxa de Atualização (FPS)</span>
+            <span class="stats-val" id="fps-usage" data-i18n="calc">Calculando...</span>
+          </div>
+
+          <div class="setting-row" style="justify-content: center; gap: 10px; margin-top: 15px; margin-bottom: 15px;">
+            <button id="btn-export" class="tab-btn" data-i18n="export_save" style="flex: 1; background-color: #4CAF50; color: white;">Exportar Save</button>
+            <button id="btn-import" class="tab-btn" data-i18n="import_save" style="flex: 1; background-color: #2196F3; color: white;">Importar Save</button>
+            <input type="file" id="input-import" accept=".json" style="display: none;">
+          </div>
+          <button id="btn-delete-progress" data-i18n="delete">Deletar Progresso</button>
+        </div>
+      </div>
+
+      <div class="footer-info">
+        <a href="https://docs.google.com/document/d/1RCTURAqh4Se7ANajF_Lj0uBB_9_gaWPFww0AaUShMXg/edit?usp=sharing" target="_blank" class="author-link">v1.0.5-beta.1</a><br><span data-i18n="created_by">Criado por</span><br>
+        <a href="https://www.linkedin.com/in/rennan-raffaele" target="_blank" class="author-link">Rennan Raffaele</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="confirm-modal">
+    <div class="modal-box">
+      <button class="modal-close-btn" id="modal-btn-close">X</button>
+      <h3 class="modal-title" data-i18n="warning">Aviso</h3>
+      <div class="modal-text" data-i18n="warning_text">
+        Isso irá apagar tudo conquistado até agora (pokedex, pokemons, bolsa, e jornada). Deseja continuar?
+      </div>
+      <div class="modal-buttons">
+        <button class="btn-nao" id="modal-btn-nao" data-i18n="no">Não</button>
+        <button class="btn-sim" id="modal-btn-sim" data-i18n="yes">Sim</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="pokemon_db.js"></script>
+  <script src="moves_en.js"></script>
+  <script src="moves_pt.js"></script>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

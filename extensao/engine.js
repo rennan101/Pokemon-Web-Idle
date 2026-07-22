@@ -57,7 +57,7 @@ window.ExploreEngine = {
 
         document.addEventListener('keydown', this.handleKeyboardInput.bind(this));
 
-        chrome.storage.local.get(["exploreRunState", "lateralidade", "activeMode"], (result) => {
+        chrome.storage.local.get(["exploreRunState", "lateralidade", "activeMode", "showUI", "pokemonGameState"], (result) => {
             if (result.exploreRunState) this.state = result.exploreRunState;
             if (!this.state.inventoryEggs) this.state.inventoryEggs = [];
             this.isRepeatMode = Boolean(this.state.isRepeatMode);
@@ -68,6 +68,9 @@ window.ExploreEngine = {
             this.saveState();
 
             if (window.ExploreUI) window.ExploreUI.updateRunButtons();
+            
+            // Invoca a criação do HUD persistente fora de batalha
+            setTimeout(() => this.updatePersistentHUD(), 800);
         });
         
         chrome.storage.onChanged.addListener((changes) => {
@@ -78,9 +81,100 @@ window.ExploreEngine = {
             if (changes.activeMode) {
                 this.activeMode = changes.activeMode.newValue;
             }
+            if (changes.pokemonGameState) {
+                let state = changes.pokemonGameState.newValue;
+                if (typeof state === 'string') { try { state = JSON.parse(state); } catch(e){} }
+                window.gameState = state;
+                this.updatePersistentHUD();
+            }
         });
     },
 
+// NOVO: Motor central para manter o HUD e XP sincronizados com o DOM persistentemente
+    updatePersistentHUD: function() {
+        if (!window.gameState || (!window.gameState.pokemonId && !window.gameState.isEgg)) {
+            let bar = document.getElementById("player-hp-bar");
+            if (bar) bar.style.display = "none";
+            return;
+        }
+
+        let isEgg = window.gameState.isEgg;
+        let xp = window.gameState.currentXp || 0;
+        
+        // 1. Calcula o Level (Igual para Ovo e Pokémon)
+        let level = window.getLevelFromTotalExp ? window.getLevelFromTotalExp(xp) : 1;
+
+        // 2. Calcula a porcentagem da Barra Azul por Nível (Igual para Ovo e Pokémon)
+        let currentBase = Math.pow(level, 3);
+        let nextBase = Math.pow(level + 1, 3);
+        let xpIntoLevel = xp - currentBase;
+        let xpRequired = nextBase - currentBase;
+        let xpPct = Math.max(0, Math.min(100, (xpIntoLevel / xpRequired) * 100));
+
+        let name, maxHp, currentHp;
+
+        if (isEgg) {
+            // Lógica exclusiva para o Ovo
+            name = window.globalAppLang === 'en' ? "Egg" : "Ovo";
+            maxHp = 1;
+            currentHp = 1;
+        } else {
+            // Lógica exclusiva para o Pokémon
+            let monId = window.gameState.pokemonId;
+            name = "Pokemon";
+            
+            let pokeDBData = window.pokemonDB ? window.pokemonDB.find(p => parseInt(p["#"], 10) === monId) : null;
+            if (pokeDBData && pokeDBData.Name) {
+                name = pokeDBData.Name;
+            } else if (window.monsterDatabase) {
+                let monDb = window.monsterDatabase.find(m => m.id === monId);
+                if (monDb) name = monDb.name;
+            }
+
+            maxHp = 10;
+            currentHp = 10;
+
+            if (pokeDBData) {
+                let evs = window.gameState.evMap ? window.gameState.evMap[monId] : null;
+                let nat = window.gameState.natureMap ? window.gameState.natureMap[monId] : "Hardy";
+                let stats = this.getStatsWithEVs(pokeDBData, evs, level, nat);
+                maxHp = stats.HP;
+                currentHp = maxHp;
+            }
+
+            // Atualiza HP se estiver tomando dano em batalha
+            if (this.isRunning && window.BattleManager && window.BattleManager.player) {
+                currentHp = window.BattleManager.player.currentHp;
+                maxHp = window.BattleManager.player.maxHp;
+            }
+        }
+
+        let barId = "player-hp-bar";
+        let bar = document.getElementById(barId);
+
+        // Instancia no DOM apenas se não existir
+        if (!bar && window.ExploreUI) {
+            var walkingContainer = document.getElementById("pet-walking-container") || document.getElementById("meu-pet-flutuante");
+            if (walkingContainer) {
+                bar = window.ExploreUI.createHPBar(barId, name, level, true);
+                walkingContainer.appendChild(bar);
+            }
+        }
+
+        if (bar && window.ExploreUI) {
+            window.ExploreUI.updateHPBar(barId, currentHp, maxHp, level, name, xpPct);
+            
+            // Esconde a barra verde de HP dinamicamente via JS se for um Ovo
+            let hpContainer = bar.querySelector('.hp-fill');
+            if (hpContainer && hpContainer.parentElement) {
+                hpContainer.parentElement.style.display = isEgg ? "none" : "block";
+            }
+
+            // Regra de exibição geral (batalha ou Show UI ligado)
+            let showUI = window.ExploreUI.showUI !== false;
+            bar.style.display = (this.isRunning || showUI) ? "block" : "none";
+        }
+    },
     injectBattleStyles: function() {
         if (document.getElementById('wbm-battle-styles')) return;
         const style = document.createElement('style');
@@ -149,12 +243,12 @@ window.ExploreEngine = {
         
         document.querySelectorAll("#active-enemy-container").forEach(el => el.remove());
         if (window.ExploreUI) {
-            window.ExploreUI.removeElement("player-hp-bar");
             window.ExploreUI.removeElement("player-moves-hud-container");
             window.ExploreUI.removeElement("player-status-board");
             window.ExploreUI.showFloatingText(window.t_ui("fled"));
             window.ExploreUI.updateRunButtons();
         }
+        this.updatePersistentHUD(); // Atualiza a barra do jogador fora de combate
     },
 
     handleKeyboardInput: function(e) {
@@ -255,9 +349,7 @@ window.ExploreEngine = {
             hudWrap.style.cssText = "position: absolute; top: -60px; left: 50%; transform: translateX(-50%); width: 100%; display: flex; justify-content: center; z-index: 1000;";
             hudWrap.innerHTML = '<div id="player-moves-hud"></div>';
             
-            let existingHp = document.getElementById("player-hp-bar");
-            if(existingHp) existingHp.remove();
-            walkingContainer.appendChild(window.ExploreUI.createHPBar("player-hp-bar", currentMonDb.name, playerLvl, true));
+            this.updatePersistentHUD(); // Prepara e exibe o HUD 
         }
 
         this.spawnEnemy();
@@ -730,10 +822,8 @@ window.ExploreEngine = {
             window.BattleManager.player.maxHp = stats.HP;
         }
         
-        var currentMon = window.monsterDatabase.find(m => m.id === window.gameState.pokemonId);
-        if (window.ExploreUI && window.BattleManager && window.BattleManager.player) {
-             window.ExploreUI.updateHPBar("player-hp-bar", window.BattleManager.player.currentHp, window.BattleManager.player.maxHp, newLevel, currentMon ? currentMon.name : "Pet");
-        }
+        // NOVO: Atualiza a barra de XP visualmente usando o motor
+        this.updatePersistentHUD();
         
         this.enemiesDefeatedInCity++;
 
@@ -769,11 +859,8 @@ window.ExploreEngine = {
                         window.BattleManager.player.currentHp = window.BattleManager.player.maxHp;
                     }
                     
-                    var pLvl = window.getLevelFromTotalExp(window.gameState.currentXp);
-                    if (window.ExploreUI && window.BattleManager && window.BattleManager.player) {
-                        window.ExploreUI.updateHPBar("player-hp-bar", window.BattleManager.player.currentHp, window.BattleManager.player.maxHp, pLvl);
-                        window.ExploreUI.showFloatingText(window.t_ui("rep_stage"));
-                    }
+                    window.ExploreEngine.updatePersistentHUD(); // Re-sincroniza a barra para a nova onda
+                    if (window.ExploreUI) window.ExploreUI.showFloatingText(window.t_ui("rep_stage"));
                     window.ExploreEngine.spawnEnemy();
                 }, 2000 / window.ExploreEngine.speedMultiplier);
             } else {
@@ -790,11 +877,8 @@ window.ExploreEngine = {
                             window.BattleManager.player.currentHp = window.BattleManager.player.maxHp;
                         }
 
-                        var pLvl = window.getLevelFromTotalExp(window.gameState.currentXp);
-                        if (window.ExploreUI && window.BattleManager && window.BattleManager.player) {
-                            window.ExploreUI.updateHPBar("player-hp-bar", window.BattleManager.player.currentHp, window.BattleManager.player.maxHp, pLvl);
-                            window.ExploreUI.showFloatingText(`${window.t_ui("advancing")}${window.ExploreEngine.currentCity.name}`);
-                        }
+                        window.ExploreEngine.updatePersistentHUD(); // Re-sincroniza a barra para a nova wave
+                        if (window.ExploreUI) window.ExploreUI.showFloatingText(`${window.t_ui("advancing")}${window.ExploreEngine.currentCity.name}`);
                         window.ExploreEngine.spawnEnemy();
                     } else {
                         window.ExploreEngine.runOver(window.t_ui("end"));
@@ -803,7 +887,7 @@ window.ExploreEngine = {
             }
         }
     },
-// NOVO: Função para o motor saber quais Pokémon o jogador já possui
+
     getUnlockedIdsArray: function() {
         let state = window.gameState || {};
         let ids = new Set();
@@ -812,60 +896,179 @@ window.ExploreEngine = {
         if (state.pokemonId) ids.add(Number(state.pokemonId));
         return Array.from(ids);
     },
-   processarEvolucao: function(pokemonDbData) {
+
+    processarEvolucao: function(pokemonDbData) {
         let evolucoes = pokemonDbData.Evolves_To_ID;
         
-        // Se não tiver evolução, encerra aqui e retoma a corrida
         if (!evolucoes) {
             this.isRunning = true;
             return;
         }
 
-        // Normaliza a leitura: transforma sempre em array (lista)
         let evoArray = Array.isArray(evolucoes) ? evolucoes : [evolucoes];
         
-        // TRAVA INTELIGENTE: Verifica quantas evoluções estão faltando
         let idsDesbloqueados = this.getUnlockedIdsArray();
         let evolucoesFaltando = evoArray.filter(evoId => !idsDesbloqueados.includes(parseInt(evoId, 10)));
 
-        // Se o jogador JÁ TEM todas as evoluções possíveis, ele para de incomodar e curte a forma base
         if (evolucoesFaltando.length === 0) {
             this.isRunning = true;
             return;
         }
 
-        // Se tem evolução faltando, processa:
         if (evoArray.length > 1) {
-            // Múltiplas evoluções (Scyther, Eevee): Mostra a janela!
             if (window.ExploreUI && typeof window.ExploreUI.abrirJanelaDeEscolhaDeEvolucao === "function") {
                 window.ExploreUI.abrirJanelaDeEscolhaDeEvolucao(evoArray);
             }
         } else {
-            // Evolução única (Charmander, Bulbasaur): Vai direto!
             this.evoluirDiretoPara(evoArray[0]);
         }
     },
-evoluirDiretoPara: function(novoIdString) {
+
+    evoluirDiretoPara: function(novoIdString) {
         let novoIdNumero = parseInt(novoIdString, 10);
-        window.gameState.pokemonId = novoIdNumero;
         
-        // Limpa o inimigo atual da tela
+        let pokeDb = window.pokemonDB ? window.pokemonDB.find(p => parseInt(p["#"], 10) === novoIdNumero) : null;
+        let petVis = document.getElementById("pet-visual-container");
+        let petImg = petVis ? petVis.querySelector("img") : null;
+
         document.querySelectorAll("#active-enemy-container").forEach(el => el.remove());
         
-        // 1. PRIMEIRO: Avisa o sistema que a corrida voltou a ficar ativa!
-        this.isRunning = true;
-        
-        // 2. DEPOIS: Atualiza a interface (agora os botões vão ler o isRunning como true e reaparecer)
-        if (window.ExploreUI) {
-            let nomeFinal = window.t_ui("cleared") && window.t_ui("cleared").includes("Cleared") ? "Evolved!" : "Evoluiu!";
-            window.ExploreUI.showFloatingText(nomeFinal);
-            window.ExploreUI.updateRunButtons();
+        if (!pokeDb || !petImg) {
+            window.gameState.pokemonId = novoIdNumero;
+            this.isRunning = true;
+            if (window.ExploreUI) {
+                let nomeFinal = window.t_ui("cleared") && window.t_ui("cleared").includes("Cleared") ? "Evolved!" : "Evoluiu!";
+                window.ExploreUI.showFloatingText(nomeFinal);
+                window.ExploreUI.updateRunButtons();
+            }
+            this.updatePersistentHUD(); 
+            this.spawnEnemy();
+            return;
         }
 
-        // 3. Retoma a batalha chamando um novo inimigo
-        this.spawnEnemy(); 
+        this.isRunning = false; 
+        if (window.ExploreUI) window.ExploreUI.showFloatingText("What?!"); 
+
+        let oldSrc = petImg.src;
+        let newSrc = typeof window.getPokemonImagePath === "function" ? window.getPokemonImagePath(novoIdNumero, pokeDb.Name) : chrome.runtime.getURL(`assets/Pokemon/${novoIdNumero}.png`);
+        
+        petImg.style.transition = "filter 0.5s ease, transform 0.2s ease";
+        petImg.style.filter = "brightness(0) invert(1) drop-shadow(0 0 15px white)";
+        
+        let toggle = false;
+        let count = 0;
+        let maxSwaps = 12;
+        let delay = 400; 
+
+        const swapFrame = () => {
+            toggle = !toggle;
+            petImg.src = toggle ? newSrc : oldSrc;
+            petImg.style.transform = toggle ? "scale(1.2)" : "scale(1)";
+            count++;
+
+            if (count > 5) delay = 200;
+            if (count > 9) delay = 100;
+
+            if (count < maxSwaps) {
+                setTimeout(swapFrame, delay);
+            } else {
+                petImg.src = newSrc;
+                petImg.style.transform = "scale(1.3)";
+                petImg.style.filter = "brightness(2) drop-shadow(0 0 20px white)";
+                
+                setTimeout(() => {
+                    petImg.style.filter = "drop-shadow(2px 4px 6px rgba(0,0,0,0.3))"; 
+                    petImg.style.transform = "scale(1)";
+                    
+                    setTimeout(() => {
+                        window.gameState.pokemonId = novoIdNumero;
+                        if (typeof window.saveData === "function") window.saveData();
+                        
+                        this.isRunning = true;
+                        if (window.ExploreUI) {
+                            let nomeFinal = window.t_ui("cleared") && window.t_ui("cleared").includes("Cleared") ? "Evolved!" : "Evoluiu!";
+                            window.ExploreUI.showFloatingText(nomeFinal);
+                            window.ExploreUI.updateRunButtons();
+                        }
+                        this.updatePersistentHUD(); // Resincroniza XP e Nome
+                        this.spawnEnemy(); 
+                    }, 500);
+                }, 400);
+            }
+        };
+
+        setTimeout(swapFrame, 600);
     },
-    
+    // ANIMAÇÃO DE ECLOSÃO DO OVO
+    animarChocoDoOvo: function(callbackChocar) {
+        let petVis = document.getElementById("pet-visual-container");
+        let petImg = petVis ? petVis.querySelector("img") : null;
+
+        if (!petImg) {
+            if (callbackChocar) callbackChocar();
+            return;
+        }
+        // Pausa a exploração (se estiver rodando) para dar destaque à animação
+        let wasRunning = this.isRunning;
+        this.isRunning = false;
+
+        // O clássico aviso de que algo está acontecendo
+        if (window.ExploreUI) window.ExploreUI.showFloatingText("Oh?!"); 
+
+        let toggle = false;
+        let count = 0;
+        let maxSwaps = 18; // Quantidade total de "piscadas" e "tremidas"
+        let delay = 450; // Começa lento
+
+        let oldTransition = petImg.style.transition;
+        petImg.style.transition = "filter 0.1s ease, transform 0.1s ease";
+
+        const pulseFrame = () => {
+            toggle = !toggle;
+            count++;
+
+            if (toggle) {
+                // Fica totalmente branco, cresce um pouco e tomba para os lados
+                let angulo = (count % 4 === 1) ? 15 : -15; 
+                petImg.style.transform = `scale(1.15) rotate(${angulo}deg)`;
+                petImg.style.filter = "brightness(0) invert(1) drop-shadow(0 0 20px white)";
+            } else {
+                // Volta ao normal (posição centralizada)
+                petImg.style.transform = "scale(1) rotate(0deg)";
+                petImg.style.filter = "brightness(1) drop-shadow(2px 4px 6px rgba(0,0,0,0.3))";
+            }
+            // Acelera o ritmo simulando um coração batendo rápido
+            if (count > 6) delay = 250;
+            if (count > 10) delay = 120;
+            if (count > 14) delay = 60;
+
+            if (count < maxSwaps) {
+                setTimeout(pulseFrame, delay);
+            } else {
+                // O GRANDE FLASH BRANCO FINAL
+                petImg.style.transition = "filter 0.3s ease, transform 0.3s ease";
+                petImg.style.transform = "scale(1.4) rotate(0deg)";
+                petImg.style.filter = "brightness(3) drop-shadow(0 0 40px white)";
+                
+                setTimeout(() => {
+                    // Volta a imagem ao estado padrão
+                    petImg.style.transition = oldTransition;
+                    petImg.style.transform = "scale(1)";
+                    petImg.style.filter = "drop-shadow(2px 4px 6px rgba(0,0,0,0.3))";
+                    
+                    // Devolve o status de corrida que estava antes
+                    this.isRunning = wasRunning; 
+                    
+                    // Dispara a SUA função de confetes e nascimento!
+                    if (callbackChocar) callbackChocar();
+                    
+                }, 500); 
+            }
+        };
+
+        // Delay de 1 segundo para o jogador processar o "Oh?!" antes de tremer
+        setTimeout(pulseFrame, 1000);
+    },
     runOver: function (msg) {
         if (this.combatLoopId) cancelAnimationFrame(this.combatLoopId);
         if (window.BattleManager) window.BattleManager.stop();
@@ -885,12 +1088,9 @@ evoluirDiretoPara: function(novoIdString) {
                  window.BattleManager.player.currentHp = window.BattleManager.player.maxHp;
             }
 
-            var playerLvl = window.getLevelFromTotalExp(window.gameState.currentXp);
-            var currentMon = window.monsterDatabase.find(m => m.id === window.gameState.pokemonId);
-            if (window.ExploreUI && window.BattleManager && window.BattleManager.player) {
-                window.ExploreUI.updateHPBar("player-hp-bar", window.BattleManager.player.currentHp, window.BattleManager.player.maxHp, playerLvl, currentMon ? currentMon.name : "Pet");
-                window.ExploreUI.showFloatingText(window.t_ui("rep_stage"));
-            }
+            this.updatePersistentHUD();
+            if (window.ExploreUI) window.ExploreUI.showFloatingText(window.t_ui("rep_stage"));
+            
             setTimeout(() => { 
                 this.isTransitioningWave = false;
                 if (window.ExploreEngine.isRunning) window.ExploreEngine.spawnEnemy(); 
@@ -906,13 +1106,14 @@ evoluirDiretoPara: function(novoIdString) {
         this.eggFoundInRun = false;
         
         if (window.ExploreUI) {
-            window.ExploreUI.removeElement("player-hp-bar");
             window.ExploreUI.removeElement("player-moves-hud-container");
             window.ExploreUI.removeElement("player-status-board");
             window.ExploreUI.removeElement("enemy-status-board");
             window.ExploreUI.showFloatingText(msg);
             window.ExploreUI.updateRunButtons();
         }
+        
+        this.updatePersistentHUD(); // Atualiza a barra do jogador fora de combate
     },
 
     equipEgg: function (index) {

@@ -37,7 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const key = el.getAttribute('data-i18n-placeholder');
         if (I18N[currentLang][key]) el.placeholder = I18N[currentLang][key];
     });
-    // NOVO: Abastece os Tooltips de Ajuda (?)
     document.querySelectorAll('[data-i18n-tooltip]').forEach(el => {
         const key = el.getAttribute('data-i18n-tooltip');
         if (I18N[currentLang][key]) el.setAttribute('data-tooltip-text', I18N[currentLang][key]);
@@ -92,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
       resetBtn.innerText = `${t("adopt")} (${count}/5)`;
     }
   }
-// NOVO: Função que varre todas as abas procurando batalhas ativas
+
   function checkAllTabsAndExecute(callback) {
       chrome.tabs.query({}, (tabs) => {
           let isBattlingAnywhere = false;
@@ -106,15 +105,10 @@ document.addEventListener('DOMContentLoaded', () => {
           tabs.forEach(tab => {
               chrome.tabs.sendMessage(tab.id, { action: "check_if_battling" }, (response) => {
                   responsesReceived++;
-                  
-                  // Ignora abas onde a extensão não pode ser injetada (ex: Nova Guia, Configurações do Chrome)
                   if (chrome.runtime.lastError) { 
-                      // Silencia o erro 
                   } else if (response && response.isRunning) {
                       isBattlingAnywhere = true;
                   }
-
-                  // Quando todas as abas responderem, executa a ação
                   if (responsesReceived === tabs.length) {
                       callback(isBattlingAnywhere);
                   }
@@ -125,7 +119,6 @@ document.addEventListener('DOMContentLoaded', () => {
  function handleEquip(id, btnElement) {
       if (isEquipLocked) return;
       
-      // Envolvemos a lógica dentro do varredor ativo
       checkAllTabsAndExecute((isBattling) => {
           if (isBattling) { 
               alert(t("blocked_city")); 
@@ -134,8 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
           
           chrome.storage.local.get(["pokemonGameState", "exploreRunState", "dopamineMode"], (result) => {
               var exploreState = result.exploreRunState || { inventoryEggs: [] };
-              // A trava antiga do exploreState.isRunning foi removida daqui!
-              
               var currentState = result.pokemonGameState;
               if (typeof currentState === 'string') try { currentState = JSON.parse(currentState); } catch(err){}
               currentState = currentState || { unlockedIds: [], xpMap: {}, evMap: {}, movesMap: {}, favorites: [], adoptionCount: 0 };
@@ -233,8 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
     function forceLoadStateAndRender(isInitialLoad = false) {
-      // 1. ADICIONADO: 'activeMode' no final do array de busca!
-      chrome.storage.local.get(["pokemonGameState", 'glassLevel', 'dopamineMode', 'lateralidade', 'idioma', 'darkMode', 'activeMode'], (res) => {
+      chrome.storage.local.get(["pokemonGameState", 'glassLevel', 'dopamineMode', 'lateralidade', 'idioma', 'darkMode', 'activeMode', 'showUI'], (res) => {
         if (isInitialLoad) {
             let initialGlassLevel = res.glassLevel !== undefined ? res.glassLevel : 50; 
             const gs = document.getElementById('glass-slider');
@@ -244,9 +234,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const dt = document.getElementById('dopamine-toggle');
             if (dt) dt.checked = res.dopamineMode !== undefined ? res.dopamineMode : true;
 
-            // 2. ADICIONADO: Atualiza o botão visualmente com base no que está salvo
             const am = document.getElementById('active-mode-toggle');
             if (am) am.checked = res.activeMode !== undefined ? res.activeMode : false;
+            
+            // NOVO: Lê a preferência Show UI
+            const showUiToggle = document.getElementById('show-ui-toggle');
+            if (showUiToggle) showUiToggle.checked = res.showUI !== false; 
             
             currentLang = res.idioma || 'pt';
             RenderManager.setLang(currentLang);
@@ -309,6 +302,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const activeModeToggle = document.getElementById('active-mode-toggle');
   if (activeModeToggle) activeModeToggle.addEventListener('change', (e) => chrome.storage.local.set({ activeMode: e.target.checked }));
 
+  // NOVO: Evento do Botão Show UI
+  const showUiToggle = document.getElementById('show-ui-toggle');
+  if (showUiToggle) showUiToggle.addEventListener('change', (e) => chrome.storage.local.set({ showUI: e.target.checked }));
+
   document.getElementById('lat-left-btn')?.addEventListener('click', () => chrome.storage.local.get(["exploreRunState"], (res) => { res.exploreRunState?.isRunning ? alert(t("blocked_lat")) : (updateLatUI('canhoto'), chrome.storage.local.set({ lateralidade: 'canhoto' })); }));
   document.getElementById('lat-right-btn')?.addEventListener('click', () => chrome.storage.local.get(["exploreRunState"], (res) => { res.exploreRunState?.isRunning ? alert(t("blocked_lat")) : (updateLatUI('destro'), chrome.storage.local.set({ lateralidade: 'destro' })); }));
   
@@ -364,7 +361,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (resetBtn) {
       resetBtn.addEventListener('click', () => {
-        // Envolvemos a lógica de adoção dentro do varredor ativo
         checkAllTabsAndExecute((isBattling) => {
             if (isBattling) { 
                 alert(t("blocked_run")); 
@@ -373,8 +369,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             chrome.storage.local.get(["pokemonGameState", "exploreRunState"], (result) => {
               var exploreState = result.exploreRunState || { inventoryEggs: [] };
-              // A trava antiga do exploreState.isRunning também foi removida daqui!
-              
               var state = result.pokemonGameState || { unlockedIds: [], xpMap: {}, evMap: {}, movesMap: {}, favorites: [], adoptionCount: 0 };
               if (typeof state === 'string') try { state = JSON.parse(state); } catch(err){}
               

@@ -31,7 +31,8 @@ export const I18N = {
         glass_tooltip: "Ajusta a transparência para simular um efeito de vidro líquido. Funciona melhor no navegador Safari.",
         dopamine_tooltip: "Ativa ou desativa todas as animações de batalha e efeitos visuais do jogo.",
         egg_battle_block: "Ovos não podem batalhar!", 
-        active_mode: "Modo Ativo", active_mode_tooltip: "Desativa os ataques automáticos. Use Q, W, E, R para disparar os golpes manualmente."
+        active_mode: "Modo Ativo", active_mode_tooltip: "Desativa os ataques automáticos. Use Q, W, E, R para disparar os golpes manualmente.",
+        show_ui: "Mostrar HUD", show_ui_tooltip: "Ativa/Desativa HUD do Pokemon fora da batalha"
     },
     en: {
         catched: "Catched", back: "← Back",
@@ -51,7 +52,8 @@ export const I18N = {
         glass_tooltip: "Adjusts transparency to simulate a liquid glass effect. Works best on the Safari browser.",
         dopamine_tooltip: "Enables or disables all battle animations and visual effects in the game.",
         egg_battle_block: "Eggs can't battle!",
-        active_mode: "Active Mode", active_mode_tooltip: "Disables auto-attacks. Press Q, W, E, R to fire moves manually."
+        active_mode: "Active Mode", active_mode_tooltip: "Disables auto-attacks. Press Q, W, E, R to fire moves manually.",
+        show_ui: "Show HUD", show_ui_tooltip: "Enable/Disable Pokemon HUD out of battle"
     }
 };
   

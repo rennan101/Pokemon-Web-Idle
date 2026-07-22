@@ -712,6 +712,11 @@ window.checkProgression = function() {
 
   if (window.gameState.isEgg) {
     if (currentLevel >= 5) {
+      
+      // TRAVA DE SEGURANÇA: Se a animação já começou, ignora o restante e não choca de novo!
+      if (window.isEvolving) return;
+      window.isEvolving = true;
+
       var pool = window.monsterDatabase;
       if (window.gameState.activeEgg && window.gameState.activeEgg.source && typeof window.DatabaseHelper !== 'undefined') {
         var city = window.DatabaseHelper.getCityByName(window.gameState.activeEgg.source);
@@ -736,7 +741,23 @@ window.checkProgression = function() {
           hatchedPokemon = legendPool[Math.floor(Math.random() * legendPool.length)];
       }
       
-      window.playEggHatchAnimation(hatchedPokemon.id); 
+      window.ExploreEngine.animarChocoDoOvo(() => {
+          // 1. Tira o status de Ovo
+          window.gameState.isEgg = false;
+          
+          // 2. Dispara os seus confetes e estrelas
+          window.triggerConfetti();
+          window.triggerSpawnStars();
+          
+          // 3. Salva a evolução no banco de dados e muda a imagem
+          window.commitEvolution(hatchedPokemon.id);
+          
+          // 4. Atualiza a barra do HUD (para mudar de "Ovo" para o nome do Pokémon)
+          if (window.ExploreEngine) window.ExploreEngine.updatePersistentHUD();
+
+          // 5. DESTRAVA A SEGURANÇA no final da animação
+          window.isEvolving = false;
+      });
     }
   } else {
     var currentMon = window.monsterDatabase.find(m => m.id === window.gameState.pokemonId);
@@ -765,6 +786,8 @@ window.handleInteraction = function() {
   if (!window.isDataLoaded || window.isEvolving) return; 
   
   window.addExperience(1); window.checkProgression(); window.saveData();
+if (window.isEvolving) return; 
+
   if (window.gameState.isEgg) { 
     window.petVisual.style.transform = `rotate(15deg) scale(${window.baseScale})`; 
     setTimeout(() => window.petVisual.style.transform = `rotate(-15deg) scale(${window.baseScale})`, 50); 

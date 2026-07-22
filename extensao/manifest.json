@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Pokemon Web Idle",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "It's an idle battle RPG game in your web browser. Evolve Pokémon, make a build, and have fun!",
 
   "permissions": [

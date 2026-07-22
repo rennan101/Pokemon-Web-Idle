@@ -36,14 +36,16 @@ window.ExploreUI = {
     inventoryElement: null,
     runButtonsContainer: null,
     selectedEggs: [],
+    showUI: true, 
 
     init: function () {
         if(this.isInitialized) return;
         this.isInitialized = true;
         this.injectGlobalStyles();
         
-        chrome.storage.local.get(["darkMode", "glassLevel", "lateralidade", "idioma"], (result) => {
+        chrome.storage.local.get(["darkMode", "glassLevel", "lateralidade", "idioma", "showUI"], (result) => {
             if (result.idioma) window.globalAppLang = result.idioma;
+            this.showUI = result.showUI !== false;
             this.createMenu();
             
             var petNode = document.getElementById("meu-pet-flutuante");
@@ -72,6 +74,11 @@ window.ExploreUI = {
                     if (document.getElementById("eggs-grid")) {
                         this.renderInventory();
                     }
+                }
+
+                if (changes.showUI !== undefined) {
+                    this.showUI = changes.showUI.newValue;
+                    if (window.ExploreEngine) window.ExploreEngine.updatePersistentHUD();
                 }
 
                 if (changes.idioma) {
@@ -182,6 +189,28 @@ window.ExploreUI = {
             #meu-pet-flutuante.dark-mode #floating-egg-icon { filter: drop-shadow(0 4px 4px rgba(255, 174, 60, 0.4)) !important; }
 
             #meu-pet-flutuante.canhoto #btn-menu-trigger, #meu-pet-flutuante.canhoto #run-buttons-container, #meu-pet-flutuante.canhoto #explore-menu-box { right: auto !important; left: -15px !important; }
+
+            /* ========================================== */
+            /* ANIMAÇÕES DE LEVEL UP & XP (NOVO)          */
+            /* ========================================== */
+            @keyframes wbmLvlPulse {
+                0% { transform: scale(1); color: inherit; text-shadow: none; }
+                50% { transform: scale(1.6); color: #FFC107 !important; text-shadow: 0 0 8px rgba(255, 193, 7, 0.8); }
+                100% { transform: scale(1); color: inherit; text-shadow: none; }
+            }
+            .wbm-lvl-pulse {
+                animation: wbmLvlPulse 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                display: inline-block;
+                transform-origin: right center;
+            }
+            @keyframes wbmXpFlash {
+                0% { background: #2196F3; }
+                30% { background: #ffffff; }
+                100% { background: #2196F3; }
+            }
+            .wbm-xp-flash {
+                animation: wbmXpFlash 0.7s ease-out !important;
+            }
         `;
         document.head.appendChild(style);
     },
@@ -193,14 +222,15 @@ window.ExploreUI = {
         triggerBtn.className = "pet-btn-hover";
         triggerBtn.title = window.t_ui("menu");
 
-        triggerBtn.style.cssText = `position: absolute; top: -15px; right: -15px; width: 30px; height: 30px; border: none; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 100001; font-weight: bold; transition: all 0.2s;`;
+        // Botão do menu levemente descido
+        triggerBtn.style.cssText = `position: absolute; top: -40px; right: -15px; width: 25px; height: 25px; border: none; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 100001; font-weight: bold; transition: all 0.2s;`;
         triggerBtn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); this.toggleMenu(); });
 
         this.createRunButtons();
 
         this.menuElement = document.createElement("div");
         this.menuElement.id = "explore-menu-box";
-        this.menuElement.style.cssText = `position: absolute; bottom: 100px; right: -15px; width: 195px; border-radius: 8px; padding: 10px; font-family: Arial, sans-serif; font-size: 13px; display: none; flex-direction: column; gap: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); z-index: 100000;`;
+        this.menuElement.style.cssText = `position: absolute; bottom: 125px; right: -15px; width: 195px; border-radius: 8px; padding: 10px; font-family: Arial, sans-serif; font-size: 13px; display: none; flex-direction: column; gap: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); z-index: 100000;`;
 
         var injectMenu = () => {
             var petNode = document.getElementById("meu-pet-flutuante");
@@ -220,9 +250,10 @@ window.ExploreUI = {
     createRunButtons: function () {
         this.runButtonsContainer = document.createElement("div");
         this.runButtonsContainer.id = "run-buttons-container";
-        this.runButtonsContainer.style.cssText = `position: absolute; top: 20px; right: -15px; display: none; flex-direction: column; gap: 5px; z-index: 100001;`;
+        // Container dos botões descido acompanhando o botão de menu (+35px)
+        this.runButtonsContainer.style.cssText = `position: absolute; top: -10px; right: -15px; display: none; flex-direction: column; gap: 5px; z-index: 100001;`;
 
-        var btnStyle = `width: 30px; height: 30px; border: none; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); font-weight: bold; transition: all 0.2s;`;
+        var btnStyle = `width: 25px; height: 25px; border: none; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); font-weight: bold; transition: all 0.2s;`;
 
         var infBtn = document.createElement("button");
         infBtn.innerHTML = "∞"; infBtn.id = "btn-inf"; infBtn.className = "pet-btn-hover";
@@ -511,11 +542,26 @@ window.ExploreUI = {
         bar.className = "wbm-hp-bar" + (isDark ? " dark-mode" : "");
         bar.style.cssText = `position: absolute; ${isPlayer ? "top: -40px;" : "top: -25px;"} left: 50%; transform: translateX(-50%); min-width: 80px; width: max-content; font-family: Arial, sans-serif; font-size: 10px; font-weight: bold; border-radius: 4px; padding: 4px 8px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); pointer-events: none; z-index: 10000;`;
 
-        bar.innerHTML = `<div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; gap: 12px;"><span class="hp-name" style="white-space: nowrap; text-align: left;">${name}</span><span class="hp-level" style="white-space: nowrap; flex-shrink: 0; font-size: 9px;">Lv.${level}</span></div><div style="width: 100%; height: 4px; background: rgba(224, 224, 224, var(--wbm-glass-opacity)); border-radius: 2px; overflow: hidden; backdrop-filter: blur(var(--wbm-glass-blur)); -webkit-backdrop-filter: blur(var(--wbm-glass-blur));"><div class="hp-fill" style="width: 100%; height: 100%; background: #4CAF50; transition: width 0.2s;"></div></div>`;
+        let xpBarHtml = isPlayer ? `
+            <div style="width: 100%; height: 3px; background: rgba(224, 224, 224, var(--wbm-glass-opacity)); border-radius: 1.5px; overflow: hidden; margin-top: 3px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);">
+                <div class="xp-fill" style="width: 0%; height: 100%; background: #2196F3; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);"></div>
+            </div>` : '';
+
+        bar.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; gap: 12px;">
+                <span class="hp-name" style="white-space: nowrap; text-align: left;">${name}</span>
+                <span class="hp-level" style="white-space: nowrap; flex-shrink: 0; font-size: 9px;">Lv.${level}</span>
+            </div>
+            <div style="width: 100%; height: 4px; background: rgba(224, 224, 224, var(--wbm-glass-opacity)); border-radius: 2px; overflow: hidden; backdrop-filter: blur(var(--wbm-glass-blur)); -webkit-backdrop-filter: blur(var(--wbm-glass-blur)); box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);">
+                <div class="hp-fill" style="width: 100%; height: 100%; background: #4CAF50; transition: width 0.2s;"></div>
+            </div>
+            ${xpBarHtml}
+        `;
         return bar;
     },
 
-    updateHPBar: function (id, current, max, newLevel, newName) {
+    // FUNÇÃO ATUALIZADA (NOVA LÓGICA DE ANIMAÇÃO DE LEVEL UP INCLUÍDA)
+    updateHPBar: function (id, current, max, newLevel, newName, xpPct) {
         var el = document.getElementById(id);
         if (!el) return;
 
@@ -528,13 +574,41 @@ window.ExploreUI = {
             else fill.style.background = "#4CAF50";
         }
 
-        if (newLevel !== undefined) {
-            var lvlEl = el.querySelector(".hp-level");
-            if (lvlEl && lvlEl.innerText !== `Lv.${newLevel}`) lvlEl.innerText = `Lv.${newLevel}`;
-        }
+        let isNameChange = false;
         if (newName !== undefined) {
             var nameEl = el.querySelector(".hp-name");
-            if (nameEl && nameEl.innerText !== newName) nameEl.innerText = newName;
+            if (nameEl && nameEl.innerText !== newName) {
+                nameEl.innerText = newName;
+                isNameChange = true;
+            }
+        }
+
+        if (newLevel !== undefined) {
+            var lvlEl = el.querySelector(".hp-level");
+            if (lvlEl && lvlEl.innerText !== `Lv.${newLevel}`) {
+                
+                // Dispara o efeito apenas se não for uma troca de Pokémon da bolsa e já existir um level
+                if (!isNameChange && lvlEl.innerText !== "Lv.?") {
+                    // Pulso Dourado no Texto
+                    lvlEl.classList.remove("wbm-lvl-pulse");
+                    void lvlEl.offsetWidth; // Força o reflow para reiniciar a animação
+                    lvlEl.classList.add("wbm-lvl-pulse");
+
+                    // Clarão Branco na Barra de XP
+                    var xpFill = el.querySelector(".xp-fill");
+                    if (xpFill) {
+                        xpFill.classList.remove("wbm-xp-flash");
+                        void xpFill.offsetWidth;
+                        xpFill.classList.add("wbm-xp-flash");
+                    }
+                }
+                lvlEl.innerText = `Lv.${newLevel}`;
+            }
+        }
+
+        if (xpPct !== undefined) {
+            var xpFill = el.querySelector(".xp-fill");
+            if (xpFill) xpFill.style.width = `${xpPct}%`;
         }
     },
 
@@ -543,20 +617,16 @@ window.ExploreUI = {
         if (el) el.remove();
     },
 
-    // NOVO: Função minimalista para renderizar a janela de escolhas de evolução
     abrirJanelaDeEscolhaDeEvolucao: function(evoArray) {
         var petNode = document.getElementById("meu-pet-flutuante");
         if (!petNode) return;
 
-        // Busca a lista de Pokémon que o jogador já tem
         let unlockedIds = window.ExploreEngine && typeof window.ExploreEngine.getUnlockedIdsArray === 'function' 
             ? window.ExploreEngine.getUnlockedIdsArray() 
             : [];
 
-        // Filtra APENAS as evoluções que faltam
         let missingEvos = evoArray.filter(evoIdString => !unlockedIds.includes(parseInt(evoIdString, 10)));
         
-        // Se não houver evolução faltando, retoma o jogo 
         if (missingEvos.length === 0) {
             if (window.ExploreEngine) {
                 window.ExploreEngine.isRunning = true;
@@ -565,13 +635,9 @@ window.ExploreUI = {
             return;
         }
 
-// ... (código anterior da função) ...
-
         var modal = document.createElement("div");
         modal.id = "evolution-dialog";
-        
-        // Ajuste o "top: 35%" aqui para a altura desejada:
-        modal.style.cssText = `position: absolute; top: -80%; left: 50%; transform: translate(-50%, -50%); width: max-content; background: rgba(244, 244, 244, var(--wbm-glass-opacity)); backdrop-filter: blur(var(--wbm-glass-blur)); border-radius: 30px; border: 1px solid #ccc; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 100005; display: flex; flex-direction: row; gap: 8px; padding: 6px 36px 6px 6px; align-items: center; flex-wrap: nowrap;`;
+        modal.style.cssText = `position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); width: max-content; background: rgba(244, 244, 244, var(--wbm-glass-opacity)); backdrop-filter: blur(var(--wbm-glass-blur)); border-radius: 30px; border: 1px solid #ccc; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 100005; display: flex; flex-direction: row; gap: 8px; padding: 6px 36px 6px 6px; align-items: center; flex-wrap: nowrap;`;
         
         var isDark = petNode.classList.contains("dark-mode");
         if (isDark) {
@@ -579,13 +645,11 @@ window.ExploreUI = {
             modal.style.borderColor = `#555`;
         }
 
-        // Botão de fechar integrado na direita
         var closeBtn = document.createElement("button");
         closeBtn.innerHTML = "✖";
         closeBtn.title = window.globalAppLang === 'pt' ? "Não evoluir agora" : "Cancel";
         closeBtn.className = "pet-btn-hover";
         closeBtn.style.cssText = `position: absolute; right: 12px; background: none; border: none; color: #ef4444; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; height: 100%; top: 0;`;
-        
         closeBtn.onclick = (e) => {
             e.stopPropagation();
             modal.remove();
@@ -595,7 +659,6 @@ window.ExploreUI = {
                 window.ExploreEngine.spawnEnemy(); 
             }
         };
-        
         modal.appendChild(closeBtn);
 
         missingEvos.forEach(evoIdString => {
@@ -607,7 +670,6 @@ window.ExploreUI = {
             btn.title = pokeDb.Name;
             btn.className = "pet-btn-hover";
             
-            // Botão redondo perfeito para os ícones
             btn.style.cssText = `display: flex; align-items: center; justify-content: center; background: ${isDark ? 'rgba(51,51,51,0.8)' : 'rgba(224,224,224,0.8)'}; border: 1px solid ${isDark ? '#444' : '#ccc'}; border-radius: 50%; padding: 6px; cursor: pointer; transition: all 0.2s; width: 44px; height: 44px; flex-shrink: 0;`;
             
             btn.onclick = (e) => {
